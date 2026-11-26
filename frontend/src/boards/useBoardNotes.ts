@@ -4,7 +4,10 @@ import type { Note } from '../services/types';
 
 type CreateNoteInput = { positionX: number; positionY: number };
 type PatchNoteInput = Partial<
-  Pick<Note, 'title' | 'positionX' | 'positionY' | 'width' | 'height' | 'zIndex' | 'backgroundColour'>
+  Pick<
+    Note,
+    'title' | 'content' | 'positionX' | 'positionY' | 'width' | 'height' | 'zIndex' | 'backgroundColour'
+  >
 >;
 
 export function useBoardNotes(boardId: string | undefined) {

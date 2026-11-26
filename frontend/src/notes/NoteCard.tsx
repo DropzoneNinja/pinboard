@@ -1,6 +1,8 @@
 import type { CSSProperties, MouseEvent } from 'react';
 import type { Note } from '../services/types';
 import { resolveNoteColour } from './palette';
+import { contentTypeIcon } from './contentTypeIcon';
+import { formatShortDate } from '../services/formatDate';
 
 interface NoteCardProps {
   note: Note;
@@ -61,6 +63,9 @@ export function NoteCard({
       }}
     >
       <div className="note-card__header" onMouseDown={onHeaderMouseDown}>
+        <span className="note-card__content-icon" title={note.contentType}>
+          {contentTypeIcon(note.contentType)}
+        </span>
         <span className="note-card__title">{note.title}</span>
         {isSelected && (
           <span className="note-card__layer-actions">
@@ -88,6 +93,13 @@ export function NoteCard({
         )}
       </div>
       <div className="note-card__body" />
+      <div
+        className="note-card__footer"
+        title={`Last updated by ${note.updater.displayName}`}
+      >
+        <span className="note-card__author-dot" style={{ background: note.updater.authorColour }} />
+        <span className="note-card__updated-date">{formatShortDate(note.updatedAt)}</span>
+      </div>
       <div className="note-card__resize-handle" onMouseDown={onResizeMouseDown} />
     </div>
   );

@@ -61,3 +61,25 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   return data as T;
 }
+
+export async function uploadFile<T>(path: string, file: File): Promise<T> {
+  const doUpload = () => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return fetch(`${API_BASE}${path}`, { method: 'POST', credentials: 'include', body: formData });
+  };
+
+  let res = await doUpload();
+  if (res.status === 401) {
+    const refreshed = await attemptRefresh();
+    if (refreshed) res = await doUpload();
+  }
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : undefined;
+  if (!res.ok) {
+    const message = data?.error?.message ?? `Upload failed with status ${res.status}`;
+    throw new ApiError(res.status, message, data);
+  }
+  return data as T;
+}

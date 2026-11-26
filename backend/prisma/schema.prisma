@@ -18,11 +18,12 @@ model User {
   lastLoginAt  DateTime? @map("last_login_at")
   isActive     Boolean   @default(true) @map("is_active")
 
-  sessions      Session[]
-  boardsCreated Board[]     @relation("BoardCreatedBy")
-  boardViews    BoardView[]
-  notesCreated  Note[]      @relation("NoteCreatedBy")
-  notesUpdated  Note[]      @relation("NoteUpdatedBy")
+  sessions            Session[]
+  boardsCreated       Board[]      @relation("BoardCreatedBy")
+  boardViews          BoardView[]
+  notesCreated        Note[]       @relation("NoteCreatedBy")
+  notesUpdated        Note[]       @relation("NoteUpdatedBy")
+  attachmentsUploaded Attachment[]
 
   @@map("users")
 }
@@ -100,10 +101,30 @@ model Note {
   deletedAt        DateTime? @map("deleted_at")
   version          Int       @default(1)
 
-  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  creator User  @relation("NoteCreatedBy", fields: [createdBy], references: [id])
-  updater User  @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
+  board       Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  creator     User         @relation("NoteCreatedBy", fields: [createdBy], references: [id])
+  updater     User         @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
+  attachments Attachment[]
 
   @@index([boardId])
   @@map("notes")
+}
+
+model Attachment {
+  id               String   @id @default(uuid()) @db.Uuid
+  noteId           String   @map("note_id") @db.Uuid
+  originalFilename String   @map("original_filename")
+  storedFilename   String   @map("stored_filename")
+  mimeType         String   @map("mime_type")
+  fileSize         Int      @map("file_size")
+  width            Int?
+  height           Int?
+  createdAt        DateTime @default(now()) @map("created_at")
+  uploadedBy       String   @map("uploaded_by") @db.Uuid
+
+  note     Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  uploader User @relation(fields: [uploadedBy], references: [id])
+
+  @@index([noteId])
+  @@map("attachments")
 }

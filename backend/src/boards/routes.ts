@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../database/prisma.js';
 import { asyncHandler, HttpError } from '../services/http.js';
 import { requireAuth } from '../auth/middleware.js';
+import { noteInclude } from '../notes/noteInclude.js';
 
 export const boardsRouter = Router();
 
@@ -91,6 +92,7 @@ boardsRouter.get(
     const notes = await prisma.note.findMany({
       where: { boardId: req.params.id!, deletedAt: null, isArchived: false },
       orderBy: { zIndex: 'asc' },
+      include: noteInclude,
     });
     res.json({ notes });
   }),
@@ -122,6 +124,7 @@ boardsRouter.post(
         createdBy: req.userId!,
         updatedBy: req.userId!,
       },
+      include: noteInclude,
     });
     res.status(201).json({ note });
   }),

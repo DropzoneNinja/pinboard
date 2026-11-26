@@ -26,12 +26,20 @@ export interface BoardView {
   zoomLevel: number;
 }
 
+export interface NoteAuthor {
+  id: string;
+  displayName: string;
+  authorColour: string;
+}
+
+export type ContentType = 'text' | 'image' | 'table' | 'mixed';
+
 export interface Note {
   id: string;
   boardId: string;
   title: string;
   content: unknown;
-  contentType: string;
+  contentType: ContentType;
   backgroundColour: string;
   positionX: number;
   positionY: number;
@@ -40,8 +48,21 @@ export interface Note {
   zIndex: number;
   createdBy: string;
   updatedBy: string;
+  creator: NoteAuthor;
+  updater: NoteAuthor;
   createdAt: string;
   updatedAt: string;
   isArchived: boolean;
   version: number;
+}
+
+export interface Attachment {
+  id: string;
+  originalFilename: string;
+  mimeType: string;
+  fileSize: number;
+  width: number | null;
+  height: number | null;
+  createdAt: string;
+  uploadedBy: string;
 }

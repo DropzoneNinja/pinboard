@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useBoard } from './useBoard';
@@ -11,6 +11,9 @@ import { NoteCard } from '../notes/NoteCard';
 import { boardBackgroundStyle } from './background';
 import { fitAllView, screenToWorld, zoomAtCenter, zoomAtPoint } from './canvasMath';
 import type { BoardView, Note } from '../services/types';
+
+// TipTap and its extensions are hefty; only load them once a note is actually opened.
+const NoteEditor = lazy(() => import('../notes/NoteEditor').then((m) => ({ default: m.NoteEditor })));
 
 const DEFAULT_NOTE_SIZE = { width: 220, height: 220 };
 
@@ -54,6 +57,7 @@ export function Whiteboard() {
   const panRef = useRef<PanInfo | null>(null);
 
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [openNoteId, setOpenNoteId] = useState<string | null>(null);
   const [spacePressed, setSpacePressed] = useState(false);
   const [dragOverride, setDragOverride] = useState<{ noteId: string; x: number; y: number } | null>(null);
   const [resizeOverride, setResizeOverride] = useState<{ noteId: string; w: number; h: number } | null>(
@@ -77,7 +81,10 @@ export function Whiteboard() {
         positionY: worldY - DEFAULT_NOTE_SIZE.height / 2,
       })
         .then((note) => {
-          if (note) setSelectedNoteId(note.id);
+          if (note) {
+            setSelectedNoteId(note.id);
+            setOpenNoteId(note.id);
+          }
         })
         .catch(() => {});
     },
@@ -136,6 +143,7 @@ export function Whiteboard() {
           }
         } else {
           setSelectedNoteId(d.noteId);
+          setOpenNoteId(d.noteId);
         }
       } else if (resizeRef.current) {
         const r = resizeRef.current;
@@ -327,7 +335,10 @@ export function Whiteboard() {
                   height={size.height}
                   isSelected={selectedNoteId === note.id}
                   isActive={isActive}
-                  onSelect={() => setSelectedNoteId(note.id)}
+                  onSelect={() => {
+                    setSelectedNoteId(note.id);
+                    setOpenNoteId(note.id);
+                  }}
                   onHeaderMouseDown={(e) => {
                     e.stopPropagation();
                     if (e.button !== 0) return;
@@ -361,6 +372,16 @@ export function Whiteboard() {
       </div>
       {showCreateBoard && (
         <CreateBoardDialog onCreate={handleCreateBoard} onClose={() => setShowCreateBoard(false)} />
+      )}
+      {openNoteId && (
+        <Suspense fallback={<div className="note-editor-overlay" />}>
+          <NoteEditor
+            key={openNoteId}
+            noteId={openNoteId}
+            patchNote={patchNote}
+            onClose={() => setOpenNoteId(null)}
+          />
+        </Suspense>
       )}
     </div>
   );

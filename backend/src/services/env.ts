@@ -19,4 +19,5 @@ export const env = {
   refreshTokenTtlDays: Number(optional('REFRESH_TOKEN_TTL_DAYS', '90')),
   maxUploadMb: Number(optional('MAX_UPLOAD_MB', '15')),
   frontendOrigin: process.env.FRONTEND_ORIGIN,
+  uploadsDir: optional('UPLOADS_DIR', '/data/uploads'),
 };
