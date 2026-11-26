@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  username     String    @unique
+  passwordHash String    @map("password_hash")
+  displayName  String    @map("display_name")
+  authorColour String    @map("author_colour")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+  lastLoginAt  DateTime? @map("last_login_at")
+  isActive     Boolean   @default(true) @map("is_active")
+
+  sessions      Session[]
+  boardsCreated Board[]     @relation("BoardCreatedBy")
+  boardViews    BoardView[]
+  notesCreated  Note[]      @relation("NoteCreatedBy")
+  notesUpdated  Note[]      @relation("NoteUpdatedBy")
+
+  @@map("users")
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash")
+  expiresAt        DateTime  @map("expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+  revokedAt        DateTime? @map("revoked_at")
+  userAgent        String?   @map("user_agent")
+  ipAddress        String?   @map("ip_address")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Board {
+  id               String    @id @default(uuid()) @db.Uuid
+  name             String
+  description      String?
+  backgroundStyle  String    @default("plain") @map("background_style")
+  backgroundColour String?   @map("background_colour")
+  createdBy        String    @map("created_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  isArchived       Boolean   @default(false) @map("is_archived")
+  deletedAt        DateTime? @map("deleted_at")
+  version          Int       @default(1)
+
+  creator    User        @relation("BoardCreatedBy", fields: [createdBy], references: [id])
+  boardViews BoardView[]
+  notes      Note[]
+
+  @@map("boards")
+}
+
+model BoardView {
+  id        String   @id @default(uuid()) @db.Uuid
+  boardId   String   @map("board_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  viewportX Float    @default(0) @map("viewport_x")
+  viewportY Float    @default(0) @map("viewport_y")
+  zoomLevel Float    @default(1) @map("zoom_level")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, userId])
+  @@map("board_views")
+}
+
+model Note {
+  id               String    @id @default(uuid()) @db.Uuid
+  boardId          String    @map("board_id") @db.Uuid
+  title            String
+  content          Json      @default("{}")
+  contentType      String    @default("text") @map("content_type")
+  backgroundColour String    @default("yellow") @map("background_colour")
+  positionX        Float     @map("position_x")
+  positionY        Float     @map("position_y")
+  width            Float     @default(220)
+  height           Float     @default(220)
+  zIndex           Int       @default(0) @map("z_index")
+  createdBy        String    @map("created_by") @db.Uuid
+  updatedBy        String    @map("updated_by") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  isArchived       Boolean   @default(false) @map("is_archived")
+  deletedAt        DateTime? @map("deleted_at")
+  version          Int       @default(1)
+
+  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  creator User  @relation("NoteCreatedBy", fields: [createdBy], references: [id])
+  updater User  @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([boardId])
+  @@map("notes")
+}

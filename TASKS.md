@@ -33,60 +33,60 @@ Goal: containers run, database is reachable and migrated, a user can log in and 
 
 ### Docker & infrastructure
 - [x] `postgres` service in docker-compose with named volume `postgres_data`
-- [ ] `backend` service builds and runs, connects to postgres — *builds and runs with a working health check; does not yet connect to the database (no Prisma/schema yet — that's below)*
+- [x] `backend` service builds and runs, connects to postgres
 - [x] `frontend` service builds (dev mode acceptable for now)
 - [x] `nginx` service: serves frontend, proxies `/api/` to backend
 - [x] Health checks for postgres and backend
 - [x] Restart policies (`unless-stopped` or `on-failure`) on all services
-- [~] `.env.example` documents all Phase 1 variables (DB creds, JWT secrets, ports) — placeholders exist; will need real auth config once auth is implemented below
+- [x] `.env.example` documents all Phase 1 variables (DB creds, JWT secrets, ports, seed users)
 - [x] Confirm `git pull && docker compose up --build -d` works end-to-end on a clean checkout
 
 ### Database
-- [ ] Prisma installed and configured in backend
-- [ ] Prisma schema: `users`, `sessions`, `boards` tables per PROJECT.md §12
-- [ ] Initial migration generated and applied automatically on container start
-- [ ] Seed script (or startup check) to create initial two user accounts (configurable via env, not hardcoded secrets)
-- [ ] Seed/startup logic to create the default **Household** board on first install only (§4 "Initial board")
+- [x] Prisma installed and configured in backend — pinned to **Prisma 6.19.3** (not latest `7.x`/`8.0.0-rc`): Prisma 7 requires a new driver-adapter architecture (separate adapter package + `prisma.config.ts`) instead of the classic `datasource.url`; 6.x is the last stable release on the simpler model, which fits this project's "simplicity over complexity" goal better. Revisit if Prisma 7 stabilises and the adapter migration seems worth it.
+- [x] Prisma schema: `users`, `sessions`, `boards` tables per PROJECT.md §12
+- [x] Initial migration generated and applied automatically on container start (`prisma migrate deploy` runs in the backend's Docker `CMD` before the server starts)
+- [x] Seed script (or startup check) to create initial two user accounts (configurable via env, not hardcoded secrets) — `backend/prisma/seed.ts`, idempotent, runs via `prisma db seed` after migrate on every container start
+- [x] Seed/startup logic to create the default **Household** board on first install only (§4 "Initial board") — only when no boards exist yet
 
 ### Backend — Auth
-- [ ] Argon2id password hashing (hash on create, verify on login)
-- [ ] `POST /api/v1/auth/login` — issues access token + refresh token
-- [ ] `POST /api/v1/auth/logout` — revokes current session
-- [ ] `POST /api/v1/auth/refresh` — refresh-token rotation, reject reused/revoked tokens
-- [ ] `GET /api/v1/auth/me`
-- [ ] `POST /api/v1/auth/revoke-sessions` — revoke all sessions for current user
-- [ ] Access tokens short-lived (e.g. 15 min), refresh tokens long-lived (default 90 days, configurable via env)
-- [ ] Refresh tokens stored **hashed** in `sessions` table
-- [ ] Cookies: HTTP-only, SameSite, Secure-when-HTTPS
-- [ ] Auth middleware enforcing login on all non-auth routes
-- [ ] Brute-force protection on login (rate limiting / lockout backoff)
-- [ ] Session metadata captured (user_agent, ip_address, last_used_at)
+- [x] Argon2id password hashing (hash on create, verify on login)
+- [x] `POST /api/v1/auth/login` — issues access token + refresh token
+- [x] `POST /api/v1/auth/logout` — revokes current session
+- [x] `POST /api/v1/auth/refresh` — refresh-token rotation, reject reused/revoked tokens (reuse of a rotated token revokes the whole session — verified by test)
+- [x] `GET /api/v1/auth/me`
+- [x] `POST /api/v1/auth/revoke-sessions` — revoke all sessions for current user
+- [x] Access tokens short-lived (15 min), refresh tokens long-lived (default 90 days, configurable via `REFRESH_TOKEN_TTL_DAYS`)
+- [x] Refresh tokens stored **hashed** (HMAC-SHA256) in `sessions` table
+- [x] Cookies: HTTP-only, SameSite=Lax, Secure dynamically when `req.secure` (works behind the nginx HTTPS reverse-proxy case too, via `trust proxy`)
+- [x] Auth middleware enforcing login on all non-auth routes — and checks the session isn't revoked on every request (not just JWT validity), so `revoke-sessions`/logout take effect immediately rather than waiting out the access token's 15-minute lifetime
+- [x] Brute-force protection on login (rate limiting: 10 attempts / 15 min / IP via `express-rate-limit`)
+- [x] Session metadata captured (user_agent, ip_address, last_used_at)
 
 ### Backend — Users & session management
-- [ ] `GET /api/v1/users`
-- [ ] `GET /api/v1/users/me`
-- [ ] `PATCH /api/v1/users/me` (display name, author colour)
-- [ ] Endpoint or inclusion in `/auth/me` to list active sessions for revocation UI (needed by §18 Settings later, but model it now)
+- [x] `GET /api/v1/users`
+- [x] `GET /api/v1/users/me`
+- [x] `PATCH /api/v1/users/me` (display name, author colour)
+- [ ] Endpoint to list/revoke one specific session by id (only bulk "revoke all" exists today) — deferred to Phase 6 alongside the session-management Settings UI that would actually drive it; PROJECT.md §13's own endpoint list only calls out the bulk `revoke-sessions` route.
 
 ### Backend — Boards (minimal, just enough for Phase 1)
-- [ ] `GET /api/v1/boards`
-- [ ] `POST /api/v1/boards`
-- [ ] `GET /api/v1/boards/:id`
+- [x] `GET /api/v1/boards`
+- [x] `POST /api/v1/boards`
+- [x] `GET /api/v1/boards/:id`
 
 ### Frontend
-- [ ] Login page (username/password form, error states)
-- [ ] Auth context/provider: holds current user, handles silent token refresh
-- [ ] Persistent login across browser restarts (cookie-based, verified via `/auth/me` on load)
-- [ ] Logout action
-- [ ] Basic app shell: top bar with app name, user identity + colour indicator, placeholder board selector
-- [ ] Routing skeleton (login vs. authenticated app)
-- [ ] API client/service layer (typed fetch wrapper, handles 401 → refresh → retry)
+- [x] Login page (username/password form, error states)
+- [x] Auth context/provider: holds current user, handles silent token refresh
+- [x] Persistent login across browser restarts (cookie-based, verified via `/auth/me` on load)
+- [x] Logout action
+- [x] Basic app shell: top bar with app name, user identity + colour indicator, board selector
+- [x] Routing skeleton (login vs. authenticated app) — react-router, `/login` + protected `/boards/:boardId`
+- [x] API client/service layer (typed fetch wrapper, handles 401 → refresh → retry)
 
 ### Phase 1 exit check
-- [ ] Two seeded users can each log in independently
-- [ ] Restarting the browser keeps the session alive
-- [ ] "Household" board exists after first boot and is fetchable via API
-- [ ] `docker compose down && docker compose up -d` preserves users/board (volume persistence confirmed)
+- [x] Two seeded users can each log in independently
+- [x] Restarting the browser keeps the session alive (verified via cookie persistence + `/auth/me`)
+- [x] "Household" board exists after first boot and is fetchable via API
+- [x] `docker compose down && docker compose up -d` preserves users/board (volume persistence confirmed — same user id/timestamps survived full container recreation)
 
 ---
 
@@ -95,41 +95,41 @@ Goal: containers run, database is reachable and migrated, a user can log in and 
 Goal: an infinite pannable/zoomable canvas with draggable, resizable sticky notes whose layout persists.
 
 ### Database
-- [ ] `notes` table migration per §12 (position_x/y, width, height, z_index, version, etc. as separate fields from content)
-- [ ] `board_views` table migration (per-user, per-board viewport_x/y, zoom_level) with unique constraint on (board_id, user_id)
+- [x] `notes` table migration per §12 (position_x/y, width, height, z_index, version, etc. as separate fields from content)
+- [x] `board_views` table migration (per-user, per-board viewport_x/y, zoom_level) with unique constraint on (board_id, user_id)
 
 ### Backend
-- [ ] `GET /api/v1/boards/:id/notes` (layout + metadata fields only is fine for this phase; content can be stubbed)
-- [ ] `POST /api/v1/boards/:id/notes` (minimal: position, size, default colour, placeholder title)
-- [ ] `PATCH /api/v1/notes/:id` supporting partial updates to position/size/z_index with **version** check (optimistic concurrency groundwork, even before realtime exists)
-- [ ] `GET /api/v1/boards/:id/view` and `PUT /api/v1/boards/:id/view` (viewport persistence)
-- [ ] Z-index management logic (bring-to-front / send-to-back increments/decrements correctly across concurrent notes)
+- [x] `GET /api/v1/boards/:id/notes` (layout + metadata fields only; content/title editing proper arrives Phase 3 — PATCH intentionally doesn't accept `content` yet, since that needs the sanitisation work scheduled for Phase 3)
+- [x] `POST /api/v1/boards/:id/notes` (position, default size/colour, placeholder title "Untitled note")
+- [x] `PATCH /api/v1/notes/:id` supporting partial updates to position/size/z_index/title/colour with **version** check — mismatch returns 409 + the latest note, verified by test
+- [x] `GET /api/v1/boards/:id/view` and `PUT /api/v1/boards/:id/view` (viewport persistence)
+- [x] Z-index management logic (bring-to-front / send-to-back) — implemented client-side (frontend computes max+1 / min-1 from its already-loaded notes, server just persists whatever z-index it's given); no server-side special-case needed
 
 ### Frontend — Canvas engine
-- [ ] Infinite canvas component (unlimited pan in all directions)
-- [ ] Smooth pan via middle-mouse-drag and Space+left-drag
-- [ ] Mouse-wheel zoom, centred on cursor position
-- [ ] Reset/home view control
-- [ ] Fit-all-notes-to-screen control
-- [ ] Canvas viewport (x, y, zoom) loaded from `board_views` on board open, saved (debounced) on change
-- [ ] Board background rendering: plain white / light grey / subtle grid / dotted paper (styles only — settings UI comes in Phase 6)
+- [x] Infinite canvas component (unlimited pan in all directions)
+- [x] Smooth pan via middle-mouse-drag and Space+left-drag
+- [x] Mouse-wheel zoom, centred on cursor position
+- [x] Reset/home view control
+- [x] Fit-all-notes-to-screen control
+- [x] Canvas viewport (x, y, zoom) loaded from `board_views` on board open, saved (debounced 500ms) on change
+- [x] Board background rendering: plain white / light grey / subtle grid / dotted paper (styles only — settings UI to *change* it comes in Phase 6)
 
 ### Frontend — Sticky notes on canvas
-- [ ] Render notes as absolutely-positioned elements transformed by canvas pan/zoom
-- [ ] Drag note by header to move (local-only state during drag — no per-frame network writes, per §19 "Important implementation detail")
-- [ ] Persist final position to backend on drag end
-- [ ] Resize handles; persist final size on resize end
-- [ ] Bring-to-front / send-to-back actions wired to z_index updates
-- [ ] Notes can overlap and be freely positioned (no default grid snapping)
-- [ ] Visual feedback while dragging/resizing (e.g. elevated shadow, outline)
-- [ ] Left-click empty canvas deselects; left-click note selects
-- [ ] Double-click empty canvas creates a new note at that position (basic note object; full editor arrives Phase 3)
-- [ ] Toolbar: new note, new board (stub), search (stub), zoom in/out, reset view, fit-all
+- [x] Render notes as absolutely-positioned elements transformed by canvas pan/zoom
+- [x] Drag note by header to move (local-only state during drag — no per-frame network writes, per §19 "Important implementation detail")
+- [x] Persist final position to backend on drag end
+- [x] Resize handles; persist final size on resize end
+- [x] Bring-to-front / send-to-back actions — small ↑/↓ buttons shown in a note's header when it's selected
+- [x] Notes can overlap and be freely positioned (no default grid snapping)
+- [x] Visual feedback while dragging/resizing (elevated shadow + brought-to-top visually while active)
+- [x] Left-click empty canvas deselects; left-click note selects
+- [x] Double-click empty canvas creates a new note centred on that position (basic placeholder note; full editor arrives Phase 3)
+- [x] Toolbar: new note, new board, search (stub — shows a "coming in a later update" toast), zoom in/out, reset view, fit-all. "New board" turned out simple enough to make fully functional rather than a stub, since `POST /boards` already existed from Phase 1.
 
 ### Phase 2 exit check
-- [ ] Create several notes, drag/resize/reorder them, reload the page — layout is identical
-- [ ] Canvas viewport (pan/zoom) is remembered per user per board after reload
-- [ ] Dragging feels smooth with no visible network lag/jank
+- [x] Create several notes, drag/resize/reorder them, reload the page — layout is identical (verified via API: PATCH + version-conflict + re-fetch round-trips correctly)
+- [x] Canvas viewport (pan/zoom) is remembered per user per board after reload (verified via API)
+- [~] Dragging feels smooth with no visible network lag/jank — the drag/resize/pan code writes to local state only during movement and persists once on release, matching the no-per-frame-network-write requirement; **not independently browser-tested** (no browser-automation tool available in this session) — worth a quick manual check by actually dragging a note at `http://localhost:8080`.
 
 ---
 
@@ -336,8 +336,9 @@ Goal: multi-board management, search, archive, recycle bin, duplication, activit
 Goal: production-hardened, documented, backed-up, and verified against every acceptance criterion in §21.
 
 ### Security review
+- [ ] Check whether Prisma has shipped a stable (non-`rc`) `7.x`/`8.x` release yet with the `effect`/`@prisma/config` ReDoS advisories (GHSA-7589-6fvf-x4pw, GHSA-ggr8-5vv4-36mx) fixed, and upgrade off the pinned `6.19.3` if so. As of Phase 1, this only affects the `prisma` CLI's config loader (dev/build-time), not `@prisma/client` at runtime — not exploitable through the app's HTTP surface — so it was accepted rather than blocking on a major-version jump into Prisma 7's new driver-adapter architecture.
 - [ ] Re-verify Argon2id usage, refresh-token hashing, HTTP-only/SameSite/Secure cookies
-- [ ] CSRF protection in place where applicable
+- [ ] CSRF protection in place where applicable — not yet implemented; cookies are `SameSite=Lax`, which blocks cross-site POSTs from most vectors, but there's no explicit CSRF token yet
 - [ ] Rate limiting on auth and write-heavy endpoints
 - [ ] Input validation audit on every API endpoint
 - [ ] Rich text / uploaded content sanitisation audit (XSS)

@@ -1,22 +1,33 @@
-import { useEffect, useState } from 'react';
-
-type HealthStatus = 'checking' | 'ok' | 'error';
+import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
+import { BoardsProvider } from './contexts/BoardsContext';
+import { ProtectedRoute } from './components/ProtectedRoute';
+import { AppShell } from './components/AppShell';
+import { LoginPage } from './components/LoginPage';
+import { HomeRedirect } from './boards/HomeRedirect';
+import { Whiteboard } from './boards/Whiteboard';
 
 function App() {
-  const [status, setStatus] = useState<HealthStatus>('checking');
-
-  useEffect(() => {
-    fetch('/api/v1/health')
-      .then((res) => (res.ok ? setStatus('ok') : setStatus('error')))
-      .catch(() => setStatus('error'));
-  }, []);
-
   return (
-    <main style={{ fontFamily: 'sans-serif', padding: '2rem' }}>
-      <h1>Household Whiteboard</h1>
-      <p>Scaffold placeholder — the real whiteboard UI lands in later phases.</p>
-      <p>Backend health check: {status}</p>
-    </main>
+    <BrowserRouter>
+      <AuthProvider>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route element={<ProtectedRoute />}>
+            <Route
+              element={
+                <BoardsProvider>
+                  <AppShell />
+                </BoardsProvider>
+              }
+            >
+              <Route path="/" element={<HomeRedirect />} />
+              <Route path="/boards/:boardId" element={<Whiteboard />} />
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
 
