@@ -64,8 +64,10 @@ tagged releases. Both `linux/amd64` and `linux/arm64` are built.
 
 **One-time setup:** the first time the workflow runs, GitHub creates each package privately by
 default. To let `docker compose pull` work without authentication on the home-lab host, open
-each package's settings on GitHub (`github.com/users/DropzoneNinja/packages/container/pinboard-backend`,
-and the same for `pinboard-frontend`) and set visibility to **Public**.
+each package's settings on GitHub and set visibility to **Public**:
+
+- https://github.com/users/DropzoneNinja/packages/container/package/pinboard-backend
+- https://github.com/users/DropzoneNinja/packages/container/package/pinboard-frontend
 
 ## Environment variables
 
