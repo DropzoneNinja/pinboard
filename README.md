@@ -62,9 +62,9 @@ ghcr.io/dropzoneninja/pinboard-frontend
 Images are tagged `latest` (on `main`), with the short commit SHA, and with the semver tag on
 tagged releases. Both `linux/amd64` and `linux/arm64` are built.
 
-**One-time setup:** the first time the workflow runs, GitHub creates each package privately by
-default. To let `docker compose pull` work without authentication on the home-lab host, open
-each package's settings on GitHub and set visibility to **Public**:
+Both packages are public, so `docker compose pull` works on the home-lab host without
+authenticating to GHCR. If that ever changes (e.g. a package reverts to private after being
+re-created), fix it on GitHub under Package settings → visibility:
 
 - https://github.com/users/DropzoneNinja/packages/container/package/pinboard-backend
 - https://github.com/users/DropzoneNinja/packages/container/package/pinboard-frontend
