@@ -5,6 +5,7 @@ import { BoardSelector } from '../boards/BoardSelector';
 import { CreateBoardDialog } from '../boards/CreateBoardDialog';
 import { RecycleBinDialog } from '../boards/RecycleBinDialog';
 import { UserMenu } from './UserMenu';
+import logo from '../assets/pinboard-logo.png';
 
 export function AppShell() {
   const { boardId } = useParams<{ boardId: string }>();
@@ -21,7 +22,10 @@ export function AppShell() {
   return (
     <div className="app-shell">
       <header className="top-bar">
-        <span className="top-bar__logo">Household Whiteboard</span>
+        <span className="top-bar__logo">
+          <img src={logo} alt="" className="top-bar__logo-icon" />
+          Household Whiteboard
+        </span>
         {boards.length > 0 && <BoardSelector boards={boards} currentBoardId={boardId} />}
         <button className="btn" onClick={() => setShowCreateBoard(true)}>
           + Board

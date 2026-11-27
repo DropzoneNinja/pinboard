@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import logo from '../assets/pinboard-logo.png';
 
 export function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -36,6 +37,7 @@ export function LoginPage() {
   return (
     <div className="login-page">
       <form className="login-card" onSubmit={handleSubmit}>
+        <img src={logo} alt="" className="login-card__logo" />
         <h1>Household Whiteboard</h1>
         <label className="field">
           Username

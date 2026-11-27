@@ -93,9 +93,17 @@ select {
   width: 320px;
 }
 
+.login-card__logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto 12px;
+}
+
 .login-card h1 {
   font-size: 20px;
   margin: 0 0 20px;
+  text-align: center;
 }
 
 .field {
@@ -124,9 +132,18 @@ select {
 }
 
 .top-bar__logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
   font-size: 15px;
   white-space: nowrap;
+}
+
+.top-bar__logo-icon {
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
 }
 
 .top-bar__spacer {
