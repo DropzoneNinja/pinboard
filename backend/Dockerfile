@@ -30,7 +30,7 @@ COPY package.json ./
 COPY prisma ./prisma
 
 RUN addgroup -S app && adduser -S app -G app \
-  && mkdir -p /data/uploads && chown -R app:app /app /data/uploads
+  && mkdir -p /data/uploads /data/backups && chown -R app:app /app /data/uploads /data/backups
 USER app
 
 EXPOSE 4000

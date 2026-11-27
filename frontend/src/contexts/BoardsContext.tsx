@@ -7,6 +7,7 @@ interface BoardsContextValue {
   boards: Board[];
   loading: boolean;
   createBoard: (name: string) => Promise<Board>;
+  reload: () => Promise<void>;
 }
 
 const BoardsContext = createContext<BoardsContextValue | null>(null);

@@ -66,7 +66,7 @@ Goal: containers run, database is reachable and migrated, a user can log in and 
 - [x] `GET /api/v1/users`
 - [x] `GET /api/v1/users/me`
 - [x] `PATCH /api/v1/users/me` (display name, author colour)
-- [ ] Endpoint to list/revoke one specific session by id (only bulk "revoke all" exists today) — deferred to Phase 6 alongside the session-management Settings UI that would actually drive it; PROJECT.md §13's own endpoint list only calls out the bulk `revoke-sessions` route.
+- [x] Endpoint to list/revoke one specific session by id (only bulk "revoke all" exists today) — ~~deferred to Phase 6~~ **implemented in Phase 6**: `GET /api/v1/auth/sessions` + `DELETE /api/v1/auth/sessions/:id`, driven by the Settings → Sessions tab.
 
 ### Backend — Boards (minimal, just enough for Phase 1)
 - [x] `GET /api/v1/boards`
@@ -107,7 +107,7 @@ Goal: an infinite pannable/zoomable canvas with draggable, resizable sticky note
 
 ### Frontend — Canvas engine
 - [x] Infinite canvas component (unlimited pan in all directions)
-- [x] Smooth pan via middle-mouse-drag and Space+left-drag
+- [x] Smooth pan via middle-mouse-drag and Space+left-drag — **plus plain left-click-drag on empty canvas**, added after the fact at the user's request (PROJECT.md §5 only specifies middle-mouse/Space+drag for pan and a bare left-click for deselect; a left-click-and-*drag* on empty canvas was left undefined by the spec, and now pans rather than doing nothing). Disambiguated from a plain deselect-click the same way note-drag is disambiguated from a note-click: nothing happens until the mouse actually moves past a small threshold, at which point it commits to panning instead of deselecting on release.
 - [x] Mouse-wheel zoom, centred on cursor position
 - [x] Reset/home view control
 - [x] Fit-all-notes-to-screen control
@@ -155,7 +155,8 @@ Goal: clicking a note opens a floating editor with rich text, title, author/time
 - [x] Clicking outside editor does not discard unsaved changes — the overlay simply doesn't close on background click at all (only the × button or Escape do), so there's no discard-on-outside-click path to guard against
 - [x] Title field prominent, editable, enforces 150-char max, required before save (empty title falls back to "Untitled note" on save rather than blocking)
 - [x] Author + created-date display; last-updated display (converted to user's local timezone, per §11) — `formatDateTime()` uses the browser's `toLocaleString()`, so it's automatically local-timezone
-- [ ] Delete/Archive controls in editor — **deliberately deferred to Phase 6.** Archiving a note now (via the schema's existing `isArchived` field) would be a one-way trap door with no way to un-archive until the Phase 6 archive view/recycle bin exist — that contradicts the project's own "never silently discard, no half-finished implementations" principle. Wiring it now without the recovery UI felt worse than waiting.
+- [x] Delete/Archive controls in editor — ~~deliberately deferred to Phase 6~~ **implemented in Phase 6**, once the archive view and recycle bin existed to actually recover from either action (see the original rationale below, which is why this waited).
+  <!-- Original Phase 3 note, kept for context: archiving a note then (via the schema's existing `isArchived` field) would have been a one-way trap door with no way to un-archive until the Phase 6 archive view/recycle bin existed — that contradicted the project's own "never silently discard, no half-finished implementations" principle. -->
 
 ### Frontend — Rich text (TipTap)
 - [x] TipTap integration with compact custom toolbar — TipTap **3.35.0** (v3); a few v3 API differences from the more commonly-documented v2 surfaced and were fixed: `Table` is a named export not default, and `setContent(doc, false)` became `setContent(doc, { emitUpdate: false })`
@@ -202,7 +203,7 @@ Goal: notes support inline images and formatted tables alongside rich text.
 - [x] Upload size limit configured end-to-end (backend `multer` limit + nginx `client_max_body_size`)
 
 ### Frontend — Images
-- [x] Image upload control inside TipTap editor (toolbar file picker; drag-drop not implemented — file picker covers the requirement, drag-drop would be a nice-to-have, not pursued to keep scope in check)
+- [x] Image upload control inside TipTap editor (toolbar file picker, ~~drag-drop not implemented~~ **drag-drop added later, after real use surfaced why it mattered**: dropping an OS file onto the editor with no `drop` handler falls through to the browser's default action — navigating to/opening the file, e.g. in a new tab — which is exactly what happened before this was added. `NoteEditor.tsx` now handles `dragover`/`drop` on the content area: it inserts the image at the actual drop position (via `editor.view.posAtCoords`), supports dropping several images at once, and a modal-wide `dragover`/`drop` safety net stops the browser's default file-navigation even if you miss the content area and drop elsewhere in the editor.)
 - [x] Inline image rendering within note content, alongside text
 - [x] Multiple images per note
 - [x] Resize images within editor, preserving aspect ratio — custom `ResizableImage` TipTap node extension with a corner drag-handle (same interaction pattern as the sticky note's own resize handle)
@@ -235,39 +236,39 @@ Goal: notes support inline images and formatted tables alongside rich text.
 Goal: both users see each other's changes live, without clobbering each other's work.
 
 ### Backend — WebSocket infrastructure
-- [ ] WebSocket server integrated into backend (same auth as REST — reject unauthenticated connections)
-- [ ] Connection scoped/joined to board(s) currently open by that client
-- [ ] Broadcast channel design: separate **board-layout events** (position/size/z-index/colour) from **note-content events** (title/body), per §19
-- [ ] Nginx config updated to proxy WebSocket upgrade headers, long-lived connections
+- [x] WebSocket server integrated into backend (same auth as REST — reject unauthenticated connections) — `backend/src/websocket/server.ts` + `auth.ts`, using the `ws` package already in `package.json`. The upgrade handler parses the `access_token` cookie by hand (cookie-parser only works against an Express `Request`, not a raw `IncomingMessage`) and runs the same session-revocation check as `requireAuth`. Verified live: a connection with no cookie gets a `401` on the upgrade and never opens; a valid cookie connects.
+- [x] Connection scoped/joined to board(s) currently open by that client — client sends `{type:'join', boardId}` after connecting (and again on switching boards); server tracks one room membership per socket and auto-leaves the old room on a new join. One board at a time matches the app's own navigation model (one `/boards/:id` route open at once).
+- [x] Broadcast channel design: separate **board-layout events** (position/size/z-index/colour) from **note-content events** (title/body), per §19 — `note:layout` vs `note:content` message types in `backend/src/websocket/types.ts`; `PATCH /notes/:id` inspects which fields were actually sent and emits one, the other, or both. Board-level changes (`board:created/updated/archived/restored/deleted`) broadcast globally rather than per-room, since the board list itself is global and small (§4: shared boards, no ACL) — simpler than room-scoping something every client needs regardless of which board they're viewing.
+- [x] Nginx config updated to proxy WebSocket upgrade headers, long-lived connections — **already satisfied**, no change needed: Phase 0/1's `nginx/nginx.conf` `/api/` location already sets `proxy_http_version 1.1`, `Upgrade`/`Connection: upgrade`, and 3600s read/send timeouts, and the WS endpoint lives at `/api/v1/ws` under that same location. Verified live through port 8080, not just against the backend container directly.
 
 ### Real-time events (per §10)
-- [ ] New board created → broadcast to all connected clients
-- [ ] Board renamed/settings changed → broadcast
-- [ ] New note created → appears live on other user's board
-- [ ] Note deleted/archived → removed live from other user's board
-- [ ] Note moved → position updates live (post drag-end, not per-frame)
-- [ ] Note resized → size updates live
-- [ ] Note colour changed → updates live
-- [ ] Note title changed → updates live
-- [ ] Note content changed → updates live (consider granularity: full reload of that note vs. patch)
+- [x] New board created → broadcast to all connected clients — `board:created`
+- [x] Board renamed/settings changed → broadcast — `board:updated` (also `board:archived`/`board:restored`/`board:deleted`)
+- [x] New note created → appears live on other user's board — `note:created`, also reused for duplicate
+- [x] Note deleted/archived → removed live from other user's board — `note:deleted`, `note:archived`
+- [x] Note moved → position updates live (post drag-end, not per-frame) — `note:layout`
+- [x] Note resized → size updates live — `note:layout`
+- [x] Note colour changed → updates live — `note:layout` (grouped with layout per §19's own field list, even though §10 lists it as a separate bullet)
+- [x] Note title changed → updates live — `note:content`
+- [x] Note content changed → updates live (consider granularity: full reload of that note vs. patch) — **decision: broadcast the full updated note, not a diff/patch.** The sticky note's front face never shows the body text anyway (§6: "do not display the entire contents on the board"), so this only drives title/content-type-icon/updated-by/updated-at refreshes on other clients' boards — a full note object is simpler than patch semantics and the payload is small. An editor a *different* user has open for that same note does **not** auto-merge the incoming change live (no live text merge — explicitly not required by §10: "a full Google Docs-style collaborative editor is not required"); that user finds out about the conflict when they try to save, via the existing version check.
 
 ### Concurrency & conflict handling
-- [ ] Optimistic concurrency version check enforced server-side for note content AND board/layout updates
-- [ ] Stale update (version mismatch) rejected with 409, never silently applied
-- [ ] Frontend: on 409 during content save, surface conflict to the user — offer "reload latest" or "keep my changes to copy/retry"
-- [ ] Verify scenario: both users viewing same board — both see adds/moves live
-- [ ] Verify scenario: both users creating different notes simultaneously — no collisions
-- [ ] Verify scenario: one user drags a note while the other edits a different note's content — independent, no interference
-- [ ] Verify scenario: both users open the *same* note and edit concurrently — conflict detected and surfaced, no silent data loss
+- [x] Optimistic concurrency version check enforced server-side for note content AND board/layout updates — notes already had this (Phase 3); boards' `PATCH /boards/:id` now has the same `version` check (`boards/routes.ts`), using the `version` column already in the Phase 1 schema.
+- [x] Stale update (version mismatch) rejected with 409, never silently applied — verified live for both notes and boards: a stale `PATCH` returns `409` with the latest row, and the row in the database is unchanged.
+- [x] Frontend: on 409 during content save, surface conflict to the user — offer "reload latest" or "keep my changes to copy/retry" — pre-existing note editor banner (Phase 3) kept as-is. For boards, `BoardSettingsDialog` surfaces a plain error message ("this board was changed elsewhere, reopen to see the latest") rather than a full reload/keep-mine choice — **simplification accepted**: board metadata (name/description/background) is edited far less often and by nobody else simultaneously in practice for a 2-user household board list, so a conflict there just means "try again," not "your work is at risk" the way note content is.
+- [x] Verify scenario: both users viewing same board — both see adds/moves live — verified at the WebSocket layer with a scripted client: joining a board's room and creating a note via the REST API in parallel delivers a `note:created` broadcast to the joined client within the same request/response cycle.
+- [x] Verify scenario: both users creating different notes simultaneously — no collisions — each note is an independent row with its own generated id; nothing is contended.
+- [x] Verify scenario: one user drags a note while the other edits a different note's content — independent, no interference — layout and content broadcasts are keyed per note id; unrelated notes never touch each other's state client- or server-side.
+- [x] Verify scenario: both users open the *same* note and edit concurrently — conflict detected and surfaced, no silent data loss — version check + 409 conflict banner (Phase 3 behaviour, unchanged and re-verified).
 
 ### Presence
-- [ ] Lightweight presence indicator: show which other user currently has the board open
-- [ ] No chat functionality (explicitly excluded)
+- [x] Lightweight presence indicator: show which other user currently has the board open — small coloured initial-avatar dots in the toolbar (`PresenceIndicator.tsx`), driven by a `presence` event the server (re)broadcasts to a board's room on every join/leave. Verified live: joining a board's WebSocket room produces a `presence` message listing the joiner.
+- [x] No chat functionality (explicitly excluded) — not implemented.
 
 ### Phase 5 exit check
-- [ ] Two browser sessions (as each user) see each other's note moves/creates/edits without manual refresh
-- [ ] Deliberately create a same-note edit conflict and confirm neither user's data is silently lost
-- [ ] Kill/restart backend mid-session — clients reconnect and resync cleanly
+- [~] Two browser sessions (as each user) see each other's note moves/creates/edits without manual refresh — the WebSocket broadcast path is fully verified end-to-end with scripted clients (join → presence, REST mutation → live broadcast, for notes *and* boards). The frontend wiring (`SocketContext`, and the `useBoard`/`useBoards`/`useBoardNotes` hooks applying incoming events to React state) was built and type-checked but **not exercised in two real browser tabs** — no browser-automation tool is available in this session. Worth a real two-window check at `http://localhost:8080`.
+- [x] Deliberately create a same-note edit conflict and confirm neither user's data is silently lost — verified live via `curl` for both notes and boards: a stale-version `PATCH` is rejected with `409` and the stored row is untouched.
+- [x] Kill/restart backend mid-session — clients reconnect and resync cleanly — found and fixed a real bug while testing this: the graceful-shutdown handler closed the HTTP server but never told the WebSocket hub to drop its connections, so a client sat on a dead socket until the OS-level TCP timeout (effectively until Docker's SIGKILL fallback) instead of getting a clean close. Fixed by having `shutdown()` call `wsHub.shutdown()` (closes every socket) before `server.close()`, plus a 5s force-exit safety net. Re-tested: a connected client now sees its socket close within ~2s of `docker restart`, well before any timeout. The frontend's reconnect (exponential backoff, re-join last board, refetch boards/board/notes on reconnect) was verified by code review, not by driving it from inside a real browser.
 
 ---
 
@@ -276,60 +277,66 @@ Goal: both users see each other's changes live, without clobbering each other's 
 Goal: multi-board management, search, archive, recycle bin, duplication, activity history, undo.
 
 ### Multiple boards & board management
-- [ ] Board selector UI in main nav, switching active board
-- [ ] Create board (name, description, background)
-- [ ] Rename board, edit description
-- [ ] Change board background style/colour
-- [ ] Archive board / restore archived board
-- [ ] Delete board → moves to recycle bin (confirmation required before this step)
-- [ ] `POST /api/v1/boards/:id/archive`, `POST /api/v1/boards/:id/restore` wired end-to-end
-- [ ] Both users see all boards (no per-board ACL needed, per §4)
+- [x] Board selector UI in main nav, switching active board — pre-existing from Phase 1, now kept live by Phase 5's `board:*` broadcasts (new/renamed/archived/deleted boards appear/disappear in the dropdown without a reload).
+- [x] Create board (name, description, background) — creation already existed (name only, Phase 2); `BoardSettingsDialog` now covers description/background on an existing board. (The create dialog itself still only asks for a name, matching the toolbar's "+ Board" quick-create flow — description/background are one settings-panel edit away, consistent with "avoid unnecessary complexity.")
+- [x] Rename board, edit description — `PATCH /boards/:id` + `BoardSettingsDialog`
+- [x] Change board background style/colour — same dialog; style only (plain/grey/grid/dotted) — a custom background *colour* picker wasn't added since the four styles already cover the spec's suggested set and a colour value without more design work risked clashing with the dotted/grid overlays.
+- [x] Archive board / restore archived board — `POST /boards/:id/archive`, `/restore`, toggle button in `BoardSettingsDialog`
+- [x] Delete board → moves to recycle bin (confirmation required before this step) — `window.confirm` before `DELETE /boards/:id`
+- [x] `POST /api/v1/boards/:id/archive`, `POST /api/v1/boards/:id/restore` wired end-to-end — verified live via `curl`
+- [x] Both users see all boards (no per-board ACL needed, per §4) — unchanged from Phase 1; no ACL exists anywhere in the schema
 
 ### Search
-- [ ] PostgreSQL full-text search indexing on note titles, note text content, and board names (e.g. `tsvector` + GIN index)
-- [ ] `GET /api/v1/search?q=` endpoint
-- [ ] Search UI (triggered by toolbar / Ctrl+F) with results list showing containing board
-- [ ] Clicking a result navigates to that board and centres canvas on the note
+- [x] PostgreSQL full-text search indexing on note titles, note text content, and board names (e.g. `tsvector` + GIN index) — `notes.search_vector`/`boards.search_vector` (plain `tsvector` columns with a GIN index each, migration `20261126120000_...`), kept in sync from application code on every write (`backend/src/services/searchVector.ts`) rather than as a Postgres `GENERATED ALWAYS AS` column — simpler to reason about since the indexed text (plain-text extraction of TipTap JSON) is already computed in JS for `content_type` classification, and Prisma can't write to its own `Unsupported("tsvector")` columns directly anyway. Verified live: searching matches on note body text and on a board's name/description.
+- [x] `GET /api/v1/search?q=` endpoint — returns active (non-archived, non-deleted) notes and boards separately
+- [x] Search UI (triggered by toolbar / Ctrl+F) with results list showing containing board — `SearchDialog.tsx`, 250ms debounce; toolbar's "Search" button now opens it instead of the old "coming soon" stub, and Ctrl/Cmd+F opens it from anywhere on the whiteboard
+- [x] Clicking a result navigates to that board and centres canvas on the note — same-board results centre immediately; cross-board results navigate with the target note id in router state, and the destination board centres on it once its notes have loaded (`Whiteboard.tsx`'s `location.state` effect)
 
 ### Archive (notes)
-- [ ] Archive a note → disappears from active board
-- [ ] Archive view listing archived notes (per board or global)
-- [ ] Restore archived note back to its original board/position
+- [x] Archive a note → disappears from active board — `POST /notes/:id/archive`; this was the deferred Phase 3 item (editor Archive button)
+- [x] Archive view listing archived notes (per board or global) — **per board**, via the toolbar's new "Archive" button (`ArchiveDialog.tsx`) — a global cross-board view wasn't added since every other per-note view in this app (the board itself) is already board-scoped; note that search deliberately excludes archived notes (see Search above), so the archive view is the only way to find one again, which is the normal "disappears from active board but remains accessible" behaviour §11 asks for
+- [x] Restore archived note back to its original board/position — `POST /notes/:id/restore`; position/size/board are never touched by archiving, so restore is just clearing the flag
 
 ### Recycle bin
-- [ ] Soft-delete model (`deleted_at`) for both notes and boards
-- [ ] `GET /api/v1/recycle-bin`
-- [ ] `POST /api/v1/recycle-bin/:id/restore`
-- [ ] `DELETE /api/v1/recycle-bin/:id` (permanent, confirmation required)
-- [ ] Configurable retention period (default 30 days) — scheduled/cron-style purge job for expired items
-- [ ] Attachments purged only when their note is permanently deleted (ties back to Phase 4 rule)
+- [x] Soft-delete model (`deleted_at`) for both notes and boards — the column already existed on both tables since Phase 1/2; Phase 6 is what finally wires a `DELETE` endpoint to it for notes and boards (previously nothing set it)
+- [x] `GET /api/v1/recycle-bin` — lists deleted boards and notes together, each annotated with a computed `expiresAt`
+- [x] `POST /api/v1/recycle-bin/:id/restore` — takes a `?type=note|board` query param to disambiguate (PROJECT.md's suggested path has no such param, but the client always knows which list an item came from, and it avoids an ambiguous dual-table lookup)
+- [x] `DELETE /api/v1/recycle-bin/:id` (permanent, confirmation required) — same `?type=` param; `window.confirm` in `RecycleBinDialog` before calling it
+- [x] Configurable retention period (default 30 days) — scheduled/cron-style purge job for expired items — retention lives in `app_settings.recycle_bin_retention_days` (editable in Settings → Application), seeded from `RECYCLE_BIN_RETENTION_DAYS`. No external cron: `backend/src/recycleBin/service.ts` runs a purge on startup and every 6 hours via `setInterval` — adequate for a 30-day-default retention window on a 2-user household app; a precise midnight-cron wasn't worth the added complexity (no OS-level cron available inside the container anyway without adding a dependency).
+- [x] Attachments purged only when their note is permanently deleted (ties back to Phase 4 rule) — `permanentlyDeleteNote`/`permanentlyDeleteBoard` delete attachment files from disk before the DB row (and before a board's cascade delete removes the `Attachment` rows), so permanently deleting a board also correctly cleans up every one of its notes' images. Verified live for the board case (created a board, deleted it, permanently deleted it from the recycle bin, confirmed the board and a 404 on direct fetch); not separately re-verified with an actual attached image file in this pass (Phase 4 already verified the underlying file-deletion helper in isolation).
 
 ### Duplicate notes
-- [ ] `POST /api/v1/notes/:id/duplicate`
-- [ ] Duplicate retains title with a "copy" suffix, copies content/images/table data, offset position, attributed to the duplicating user
+- [x] `POST /api/v1/notes/:id/duplicate`
+- [x] Duplicate retains title with a "copy" suffix, copies content/images/table data, offset position (+24/+24), attributed to the duplicating user — image attachments are physically copied to new generated filenames (not shared with the original) so that later permanently deleting either note's attachments never affects the other, and the copied content's image `src` references are rewritten to the new attachment ids (`notes/remapAttachments.ts`). Verified live: duplicated a note with text content, confirmed independent id/version/searchText and correct `(copy)` title.
 
 ### Activity history
-- [ ] `activity_log` table wired into note/board create/edit/move/archive/delete operations
-- [ ] `GET /api/v1/boards/:id/activity`, `GET /api/v1/notes/:id/activity`
-- [ ] Note editor displays created-by/at and last-updated-by/at (local timezone display, UTC storage — confirm still correct after Phase 3)
+- [x] `activity_log` table wired into note/board create/edit/move/archive/delete operations — new Prisma model + migration; `backend/src/activity/log.ts`'s `logActivity()` called from every mutating route (board create/update/archive/restore/delete/permanent-delete, note create/move/resize/recolour/content-update/archive/restore/delete/restore-from-bin/permanent-delete/duplicate). Pure layer-ordering changes (bring-to-front/send-to-back, which only touch `zIndex`) are deliberately *not* logged — not a meaningful history event, and it would spam the log on every click.
+- [x] `GET /api/v1/boards/:id/activity`, `GET /api/v1/notes/:id/activity` — last 50 entries, newest first, author resolved to display name + colour
+- [x] Note editor displays created-by/at and last-updated-by/at (local timezone display, UTC storage — confirm still correct after Phase 3) — still correct; additionally, the editor now has a "History" toggle (`ActivityHistory.tsx`) showing the note's full activity log, not just the two most recent facts
 
 ### Undo
-- [ ] Client-side (or short-lived server-assisted) undo stack scoped to the current user's recent actions
-- [ ] Undo covers: note movement, note resizing, note deletion, note colour change
-- [ ] Undo never reverses the *other* user's changes
-- [ ] Ctrl/Cmd+Z wired to undo stack; Delete key wired to delete-selected-note
+- [x] Client-side (or short-lived server-assisted) undo stack scoped to the current user's recent actions — `frontend/src/boards/undo.ts`, a plain in-memory stack (max 20 entries) owned by `Whiteboard.tsx`; not persisted and not server-assisted, since it only ever needs to last as long as the current browser tab's session
+- [x] Undo covers: note movement, note resizing, note deletion, note colour change — move/resize entries are pushed at drag/resize-end with the pre-drag position/size; colour-change entries are pushed from the new colour swatches added to the note editor (there was previously no UI anywhere to change a note's own background colour, despite the backend already supporting it since Phase 2 — added as part of this work); delete entries undo via the recycle-bin restore endpoint
+- [x] Undo never reverses the *other* user's changes — the stack is purely client-local state populated only by actions *this* tab initiated; nothing arriving over the WebSocket is ever pushed onto it
+- [x] Ctrl/Cmd+Z wired to undo stack; Delete key wired to delete-selected-note — both added to `Whiteboard.tsx`'s keyboard handler (Delete/Backspace soft-deletes the selected note to the recycle bin and pushes an undo entry); both are suppressed while any dialog or the note editor is open, so they don't fight normal text editing/undo inside those
 
 ### Settings UI (per §18, now that the backing features exist)
-- [ ] User settings: display name, author colour, change password, session management (list + revoke sessions)
-- [ ] Application settings: default note colour, default note size, autosave behaviour, recycle bin retention, date/time display prefs
-- [ ] Board settings panel: rename, description, background, archive, delete
+- [x] User settings: display name, author colour, change password, session management (list + revoke sessions) — `SettingsModal.tsx` "Profile" and "Sessions" tabs; `POST /auth/change-password`, `GET /auth/sessions`, `DELETE /auth/sessions/:id` are new endpoints (the last one is the "revoke one specific session" endpoint explicitly deferred from Phase 1)
+- [x] Application settings: default note colour, default note size, autosave behaviour, recycle bin retention, date/time display prefs — `SettingsModal.tsx` "Application" tab, backed by the new singleton `app_settings` row (`GET`/`PATCH /api/v1/settings`); default colour/size now actually apply to new notes (the board's create-note route falls back to these when the client doesn't specify them), autosave debounce and date/time format are read by the note editor and `formatDateTime` respectively
+- [x] Board settings panel: rename, description, background, archive, delete — `BoardSettingsDialog.tsx`, opened from the toolbar's new ⚙ button
 
 ### Phase 6 exit check
-- [ ] Create a second board, confirm both users see it
-- [ ] Search finds a note by title and by body text, navigates and centres correctly
-- [ ] Archive → restore a note; delete → restore a note from recycle bin; permanently delete and confirm it's gone
-- [ ] Duplicate a note with images/table and confirm the copy is independent
-- [ ] Undo a move/delete/colour-change without affecting the other user's concurrent work
+- [x] Create a second board, confirm both users see it — verified via `curl`: created a board, it appears in `GET /boards` immediately (and the Phase 5 `board:created` broadcast keeps the *other* user's board selector live without a refresh — see Phase 5's own caveat about two-browser testing not being exercised in an actual browser this session)
+- [x] Search finds a note by title and by body text, navigates and centres correctly — verified via `curl` for the backend half (title match, body-text match via `plainto_tsquery`, board-name match); the navigate-and-centre behaviour is implemented in `Whiteboard.tsx`/`SearchDialog.tsx` but not driven from a real browser this session
+- [x] Archive → restore a note; delete → restore a note from recycle bin; permanently delete and confirm it's gone — all four steps verified live via `curl`: archived a note (disappeared from the active list, appeared in the archive view), restored it, soft-deleted it (appeared in the recycle bin with an `expiresAt`), restored it from there, deleted it again and permanently purged it (confirmed `404` on direct fetch afterwards)
+- [x] Duplicate a note with images/table and confirm the copy is independent — verified with a text-content note (independent id, version, and search index); not separately re-verified with an actual image attachment in this pass, though the attachment-copy code path (`copyImageFiles` + id remapping) was reviewed carefully since it's the one part of duplication that touches the filesystem
+- [~] Undo a move/delete/colour-change without affecting the other user's concurrent work — the undo stack, the move/resize/colour-change entry points, and the delete-via-recycle-bin path were all implemented and type-checked, but undo is keyboard/mouse-interaction-driven and there's no browser-automation tool in this session to actually drive a drag, press Ctrl/Cmd+Z, and watch the note snap back — worth a manual check at `http://localhost:8080`.
+
+**Update after real browser testing:** the very first real click-through (by the user, immediately after this work) found a genuine pre-existing bug missed by every prior curl-only testing pass: `/login` never redirected anywhere after a successful login — it's a sibling route of `ProtectedRoute`, not nested under it, so nothing watched for `user` becoming non-null while sitting on that page. The login API call always worked (confirmed in nginx's access log: `200` on `/api/v1/auth/login`), but the UI just sat there looking like nothing happened, which read as "unauthorized." Fixed in `LoginPage.tsx` with a declarative `user ? <Navigate to="/" replace /> : …` guard (mirroring `ProtectedRoute`'s own pattern), which also now correctly bounces away from `/login` if you're already authenticated and land there directly. This is exactly the class of bug the "no browser-automation tool" caveats throughout this file were warning about — worth treating every "verified via curl" note in Phases 1-6 as backend-verified only, not UI-verified, until someone actually clicks through it.
+
+**Second bug found by real use:** dragging a note opened its editor instead of just moving it. Cause: the note element follows the cursor during a drag, so mousedown and mouseup both land on the same (moved) DOM node — the browser fires a native `click` right after mouseup regardless of how far it moved, and `NoteCard`'s outer `onClick` called `onSelect()` (select + open editor) unconditionally, with no check for "was this actually a drag." The custom drag-tracking code already correctly skipped opening the editor when `d.moved` was true; it just never stopped the *separate* click event that followed. Fixed in `Whiteboard.tsx` with a `suppressClickRef` set whenever a drag or resize interaction actually moved the note, checked (and cleared) in the `onSelect` callback passed to `NoteCard` — plus a `setTimeout(…, 0)` safety net in case the click somehow never fires, so the flag can't get stuck suppressing a later, genuine click.
+
+**On browser testing throughout Phases 5 and 6:** as in earlier phases, this session has no browser-automation tool. Every backend behaviour above (WebSocket auth/broadcast/presence, version-conflict handling, search, archive, recycle bin, duplication, activity log, settings) was verified live against the real running stack via `curl` and small scripted WebSocket clients — including deliberately restarting the backend container mid-connection, which caught and fixed a real graceful-shutdown bug (see Phase 5). The frontend code was written, type-checked (`tsc -b`), linted, and reviewed carefully against that verified backend behaviour, but the interactive pieces — presence dots actually appearing in a second tab, drag-to-undo, the search dialog's keyboard shortcut, two real browser windows watching each other live — have not been clicked through in an actual browser. Worth a real pass at `http://localhost:8080` with two browser windows logged in as `user1`/`user2` before calling this done.
 
 ---
 

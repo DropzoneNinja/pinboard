@@ -34,6 +34,8 @@ services:
       REFRESH_TOKEN_SECRET: ${REFRESH_TOKEN_SECRET}
       REFRESH_TOKEN_TTL_DAYS: ${REFRESH_TOKEN_TTL_DAYS:-90}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-15}
+      RECYCLE_BIN_RETENTION_DAYS: ${RECYCLE_BIN_RETENTION_DAYS:-30}
+      BACKUP_DIR: ${BACKUP_DIR:-/data/backups}
       SEED_USER1_USERNAME: ${SEED_USER1_USERNAME}
       SEED_USER1_PASSWORD: ${SEED_USER1_PASSWORD}
       SEED_USER1_DISPLAY_NAME: ${SEED_USER1_DISPLAY_NAME}
@@ -44,6 +46,7 @@ services:
       SEED_USER2_COLOUR: ${SEED_USER2_COLOUR}
     volumes:
       - uploads_data:/data/uploads
+      - ${BACKUP_HOST_DIR:-backups_data}:/data/backups
     networks:
       - internal
 
@@ -73,6 +76,10 @@ services:
 volumes:
   postgres_data:
   uploads_data:
+  # Only actually created/used when BACKUP_HOST_DIR is left unset — see the backend service's
+  # volume mount above, which substitutes BACKUP_HOST_DIR (an absolute host path) in its place
+  # when that variable is set, bind-mounting that directory instead of this managed volume.
+  backups_data:
 
 networks:
   internal:

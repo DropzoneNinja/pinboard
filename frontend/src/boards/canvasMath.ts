@@ -57,11 +57,48 @@ interface BoundingBox {
   maxY: number;
 }
 
-export function fitAllView(
-  boxes: BoundingBox[],
+/** Centres the viewport on a note's midpoint, used when jumping to a search result. */
+export function centerOnNote(
+  note: { positionX: number; positionY: number; width: number; height: number },
   containerRect: DOMRect,
-  padding = 80,
+  zoomLevel = 1,
 ): BoardView {
+  const centerX = note.positionX + note.width / 2;
+  const centerY = note.positionY + note.height / 2;
+  return {
+    viewportX: containerRect.width / 2 - centerX * zoomLevel,
+    viewportY: containerRect.height / 2 - centerY * zoomLevel,
+    zoomLevel,
+  };
+}
+
+/** The topmost note (by z-index) whose bounds contain the given world point, if any. */
+export function noteAtPoint<
+  T extends {
+    id: string;
+    positionX: number;
+    positionY: number;
+    width: number;
+    height: number;
+    zIndex: number;
+  },
+>(notes: T[], worldX: number, worldY: number): T | null {
+  let best: T | null = null;
+  for (const note of notes) {
+    if (
+      worldX < note.positionX ||
+      worldX > note.positionX + note.width ||
+      worldY < note.positionY ||
+      worldY > note.positionY + note.height
+    ) {
+      continue;
+    }
+    if (!best || note.zIndex > best.zIndex) best = note;
+  }
+  return best;
+}
+
+export function fitAllView(boxes: BoundingBox[], containerRect: DOMRect, padding = 80): BoardView {
   if (boxes.length === 0) {
     return { viewportX: 0, viewportY: 0, zoomLevel: 1 };
   }

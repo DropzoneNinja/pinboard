@@ -124,7 +124,10 @@ export function EditorToolbar({ editor, onUploadImage }: EditorToolbarProps) {
       >
         "
       </ToolbarButton>
-      <ToolbarButton onClick={() => editor.chain().focus().setHorizontalRule().run()} title="Horizontal rule">
+      <ToolbarButton
+        onClick={() => editor.chain().focus().setHorizontalRule().run()}
+        title="Horizontal rule"
+      >
         —
       </ToolbarButton>
       <ToolbarButton
@@ -191,16 +194,28 @@ export function EditorToolbar({ editor, onUploadImage }: EditorToolbarProps) {
       {inTable && (
         <>
           <span className="editor-toolbar__divider" />
-          <ToolbarButton onClick={() => editor.chain().focus().addRowAfter().run()} title="Add row below">
+          <ToolbarButton
+            onClick={() => editor.chain().focus().addRowAfter().run()}
+            title="Add row below"
+          >
             +Row
           </ToolbarButton>
-          <ToolbarButton onClick={() => editor.chain().focus().deleteRow().run()} title="Delete row">
+          <ToolbarButton
+            onClick={() => editor.chain().focus().deleteRow().run()}
+            title="Delete row"
+          >
             −Row
           </ToolbarButton>
-          <ToolbarButton onClick={() => editor.chain().focus().addColumnAfter().run()} title="Add column">
+          <ToolbarButton
+            onClick={() => editor.chain().focus().addColumnAfter().run()}
+            title="Add column"
+          >
             +Col
           </ToolbarButton>
-          <ToolbarButton onClick={() => editor.chain().focus().deleteColumn().run()} title="Delete column">
+          <ToolbarButton
+            onClick={() => editor.chain().focus().deleteColumn().run()}
+            title="Delete column"
+          >
             −Col
           </ToolbarButton>
           <ToolbarButton
@@ -209,7 +224,10 @@ export function EditorToolbar({ editor, onUploadImage }: EditorToolbarProps) {
           >
             Header
           </ToolbarButton>
-          <ToolbarButton onClick={() => editor.chain().focus().deleteTable().run()} title="Delete table">
+          <ToolbarButton
+            onClick={() => editor.chain().focus().deleteTable().run()}
+            title="Delete table"
+          >
             ✕Table
           </ToolbarButton>
           <span className="editor-toolbar__swatches">

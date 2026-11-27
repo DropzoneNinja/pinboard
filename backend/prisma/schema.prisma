@@ -18,12 +18,14 @@ model User {
   lastLoginAt  DateTime? @map("last_login_at")
   isActive     Boolean   @default(true) @map("is_active")
 
-  sessions            Session[]
-  boardsCreated       Board[]      @relation("BoardCreatedBy")
-  boardViews          BoardView[]
-  notesCreated        Note[]       @relation("NoteCreatedBy")
-  notesUpdated        Note[]       @relation("NoteUpdatedBy")
-  attachmentsUploaded Attachment[]
+  sessions               Session[]
+  boardsCreated          Board[]          @relation("BoardCreatedBy")
+  boardViews             BoardView[]
+  notesCreated           Note[]           @relation("NoteCreatedBy")
+  notesUpdated           Note[]           @relation("NoteUpdatedBy")
+  attachmentsUploaded    Attachment[]
+  activityLog            ActivityLog[]
+  noteConnectionsCreated NoteConnection[]
 
   @@map("users")
 }
@@ -46,21 +48,25 @@ model Session {
 }
 
 model Board {
-  id               String    @id @default(uuid()) @db.Uuid
+  id               String                   @id @default(uuid()) @db.Uuid
   name             String
   description      String?
-  backgroundStyle  String    @default("plain") @map("background_style")
-  backgroundColour String?   @map("background_colour")
-  createdBy        String    @map("created_by") @db.Uuid
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  isArchived       Boolean   @default(false) @map("is_archived")
-  deletedAt        DateTime? @map("deleted_at")
-  version          Int       @default(1)
+  backgroundStyle  String                   @default("plain") @map("background_style")
+  backgroundColour String?                  @map("background_colour")
+  createdBy        String                   @map("created_by") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  isArchived       Boolean                  @default(false) @map("is_archived")
+  deletedAt        DateTime?                @map("deleted_at")
+  version          Int                      @default(1)
+  /// Maintained via raw SQL (to_tsvector on name + description) whenever either changes — see searchVector.ts.
+  searchVector     Unsupported("tsvector")? @map("search_vector")
 
-  creator    User        @relation("BoardCreatedBy", fields: [createdBy], references: [id])
-  boardViews BoardView[]
-  notes      Note[]
+  creator         User             @relation("BoardCreatedBy", fields: [createdBy], references: [id])
+  boardViews      BoardView[]
+  notes           Note[]
+  activityLog     ActivityLog[]
+  noteConnections NoteConnection[]
 
   @@map("boards")
 }
@@ -82,29 +88,36 @@ model BoardView {
 }
 
 model Note {
-  id               String    @id @default(uuid()) @db.Uuid
-  boardId          String    @map("board_id") @db.Uuid
+  id               String                   @id @default(uuid()) @db.Uuid
+  boardId          String                   @map("board_id") @db.Uuid
   title            String
-  content          Json      @default("{}")
-  contentType      String    @default("text") @map("content_type")
-  backgroundColour String    @default("yellow") @map("background_colour")
-  positionX        Float     @map("position_x")
-  positionY        Float     @map("position_y")
-  width            Float     @default(220)
-  height           Float     @default(220)
-  zIndex           Int       @default(0) @map("z_index")
-  createdBy        String    @map("created_by") @db.Uuid
-  updatedBy        String    @map("updated_by") @db.Uuid
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-  isArchived       Boolean   @default(false) @map("is_archived")
-  deletedAt        DateTime? @map("deleted_at")
-  version          Int       @default(1)
+  content          Json                     @default("{}")
+  contentType      String                   @default("text") @map("content_type")
+  backgroundColour String                   @default("yellow") @map("background_colour")
+  positionX        Float                    @map("position_x")
+  positionY        Float                    @map("position_y")
+  width            Float                    @default(220)
+  height           Float                    @default(220)
+  zIndex           Int                      @default(0) @map("z_index")
+  createdBy        String                   @map("created_by") @db.Uuid
+  updatedBy        String                   @map("updated_by") @db.Uuid
+  createdAt        DateTime                 @default(now()) @map("created_at")
+  updatedAt        DateTime                 @updatedAt @map("updated_at")
+  isArchived       Boolean                  @default(false) @map("is_archived")
+  deletedAt        DateTime?                @map("deleted_at")
+  version          Int                      @default(1)
+  /// Plain-text extraction of `content` (TipTap JSON), kept in sync in notes/searchVector.ts.
+  searchText       String                   @default("") @map("search_text")
+  /// Maintained via raw SQL (to_tsvector on title + searchText) — see searchVector.ts.
+  searchVector     Unsupported("tsvector")? @map("search_vector")
 
-  board       Board        @relation(fields: [boardId], references: [id], onDelete: Cascade)
-  creator     User         @relation("NoteCreatedBy", fields: [createdBy], references: [id])
-  updater     User         @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
-  attachments Attachment[]
+  board        Board            @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  creator      User             @relation("NoteCreatedBy", fields: [createdBy], references: [id])
+  updater      User             @relation("NoteUpdatedBy", fields: [updatedBy], references: [id])
+  attachments  Attachment[]
+  activityLog  ActivityLog[]
+  connectionsA NoteConnection[] @relation("NoteConnectionA")
+  connectionsB NoteConnection[] @relation("NoteConnectionB")
 
   @@index([boardId])
   @@map("notes")
@@ -127,4 +140,73 @@ model Attachment {
 
   @@index([noteId])
   @@map("attachments")
+}
+
+model ActivityLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  boardId   String?  @map("board_id") @db.Uuid
+  noteId    String?  @map("note_id") @db.Uuid
+  action    String
+  metadata  Json     @default("{}")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  board Board? @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  note  Note?  @relation(fields: [noteId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([noteId])
+  @@index([userId])
+  @@map("activity_log")
+}
+
+/// A "string" pinned between two notes on the same board. `noteAId`/`noteBId` are unordered (the
+/// connection has no direction) — routes check both orderings before creating one, so a pair of
+/// notes is never linked twice.
+model NoteConnection {
+  id        String   @id @default(uuid()) @db.Uuid
+  boardId   String   @map("board_id") @db.Uuid
+  noteAId   String   @map("note_a_id") @db.Uuid
+  noteBId   String   @map("note_b_id") @db.Uuid
+  createdBy String   @map("created_by") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  board   Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  noteA   Note  @relation("NoteConnectionA", fields: [noteAId], references: [id], onDelete: Cascade)
+  noteB   Note  @relation("NoteConnectionB", fields: [noteBId], references: [id], onDelete: Cascade)
+  creator User  @relation(fields: [createdBy], references: [id])
+
+  @@unique([noteAId, noteBId])
+  @@index([boardId])
+  @@index([noteBId])
+  @@map("note_connections")
+}
+
+/// Single shared row (id "global") — this is a two-user household app, so application-wide
+/// settings have no per-user scope. See PROJECT.md §18 "Application settings".
+model AppSettings {
+  id                      String   @id @default("global")
+  defaultNoteColour       String   @default("yellow") @map("default_note_colour")
+  defaultNoteWidth        Float    @default(220) @map("default_note_width")
+  defaultNoteHeight       Float    @default(220) @map("default_note_height")
+  autosaveDebounceMs      Int      @default(700) @map("autosave_debounce_ms")
+  recycleBinRetentionDays Int      @default(30) @map("recycle_bin_retention_days")
+  dateTimeFormat          String   @default("auto") @map("date_time_format")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  @@map("app_settings")
+}
+
+/// Single shared row (id "global") — automated system-backup schedule, configured from the
+/// backup management screen (under the user menu, not per-board).
+model BackupSettings {
+  id          String    @id @default("global")
+  enabled     Boolean   @default(false)
+  frequency   String    @default("weekly") @map("frequency")
+  retainCount Int       @default(4) @map("retain_count")
+  lastRunAt   DateTime? @map("last_run_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("backup_settings")
 }

@@ -3,7 +3,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { prisma } from '../database/prisma.js';
 import { asyncHandler, HttpError } from '../services/http.js';
-import { verifyPassword } from './password.js';
+import { hashPassword, verifyPassword } from './password.js';
 import { requireAuth } from './middleware.js';
 import { loginRateLimiter } from './rateLimiter.js';
 import { clearAuthCookies, getRefreshTokenCookie, setAuthCookies } from './cookies.js';
@@ -140,6 +140,55 @@ authRouter.post(
       data: { revokedAt: new Date() },
     });
     clearAuthCookies(req, res);
+    res.status(204).end();
+  }),
+);
+
+authRouter.get(
+  '/sessions',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const sessions = await prisma.session.findMany({
+      where: { userId: req.userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { lastUsedAt: 'desc' },
+      select: { id: true, createdAt: true, lastUsedAt: true, userAgent: true, ipAddress: true },
+    });
+    res.json({
+      sessions: sessions.map((s) => ({ ...s, isCurrent: s.id === req.sessionId })),
+    });
+  }),
+);
+
+authRouter.delete(
+  '/sessions/:id',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const session = await prisma.session.findFirst({
+      where: { id: req.params.id!, userId: req.userId, revokedAt: null },
+    });
+    if (!session) throw new HttpError(404, 'Session not found');
+    await prisma.session.update({ where: { id: session.id }, data: { revokedAt: new Date() } });
+    if (session.id === req.sessionId) clearAuthCookies(req, res);
+    res.status(204).end();
+  }),
+);
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1),
+  newPassword: z.string().min(8).max(200),
+});
+
+authRouter.post(
+  '/change-password',
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+    const user = await prisma.user.findUnique({ where: { id: req.userId } });
+    if (!user || !(await verifyPassword(user.passwordHash, currentPassword))) {
+      throw new HttpError(401, 'Current password is incorrect');
+    }
+    const passwordHash = await hashPassword(newPassword);
+    await prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
     res.status(204).end();
   }),
 );

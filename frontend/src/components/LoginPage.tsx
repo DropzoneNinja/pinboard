@@ -1,13 +1,24 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
+import { Navigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
 export function LoginPage() {
-  const { login } = useAuth();
+  const { user, loading, login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // `/login` is a sibling of the protected routes, not nested under ProtectedRoute, so nothing
+  // else redirects away from it once login succeeds (or if you're already logged in and land
+  // here directly) — this guard is what actually does that.
+  if (loading) {
+    return <div className="full-page-status">Loading…</div>;
+  }
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();

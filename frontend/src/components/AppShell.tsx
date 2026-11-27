@@ -1,16 +1,17 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useParams } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import { useBoardsContext } from '../contexts/BoardsContext';
 import { BoardSelector } from '../boards/BoardSelector';
 import { CreateBoardDialog } from '../boards/CreateBoardDialog';
+import { RecycleBinDialog } from '../boards/RecycleBinDialog';
+import { UserMenu } from './UserMenu';
 
 export function AppShell() {
-  const { user, logout } = useAuth();
   const { boardId } = useParams<{ boardId: string }>();
   const { boards, createBoard } = useBoardsContext();
   const navigate = useNavigate();
   const [showCreateBoard, setShowCreateBoard] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
 
   async function handleCreateBoard(name: string) {
     const board = await createBoard(name);
@@ -26,15 +27,10 @@ export function AppShell() {
           + Board
         </button>
         <div className="top-bar__spacer" />
-        {user && (
-          <span className="user-badge">
-            <span className="user-badge__dot" style={{ background: user.authorColour }} />
-            {user.displayName}
-          </span>
-        )}
-        <button className="btn" onClick={() => logout()}>
-          Log out
+        <button className="btn" onClick={() => setShowRecycleBin(true)}>
+          Recycle bin
         </button>
+        <UserMenu />
       </header>
       <main className="app-shell__content">
         <Outlet />
@@ -42,6 +38,7 @@ export function AppShell() {
       {showCreateBoard && (
         <CreateBoardDialog onCreate={handleCreateBoard} onClose={() => setShowCreateBoard(false)} />
       )}
+      {showRecycleBin && <RecycleBinDialog onClose={() => setShowRecycleBin(false)} />}
     </div>
   );
 }

@@ -1,11 +1,11 @@
-import { mkdir, unlink, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, unlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import sharp from 'sharp';
 import { env } from '../services/env.js';
 
-const IMAGES_DIR = path.join(env.uploadsDir, 'images');
-const THUMBNAILS_DIR = path.join(env.uploadsDir, 'thumbnails');
+export const IMAGES_DIR = path.join(env.uploadsDir, 'images');
+export const THUMBNAILS_DIR = path.join(env.uploadsDir, 'thumbnails');
 const THUMBNAIL_MAX_EDGE = 320;
 
 const EXTENSION_BY_FORMAT: Record<string, string> = {
@@ -67,6 +67,15 @@ export function imagePath(storedFilename: string): string {
 
 export function thumbnailPath(storedFilename: string): string {
   return path.join(THUMBNAILS_DIR, path.basename(storedFilename));
+}
+
+/** Copies an existing image + its thumbnail to new generated filenames (used by note duplication). */
+export async function copyImageFiles(storedFilename: string): Promise<string> {
+  const extension = storedFilename.slice(storedFilename.lastIndexOf('.'));
+  const newFilename = `${crypto.randomUUID()}${extension}`;
+  await copyFile(imagePath(storedFilename), imagePath(newFilename));
+  await copyFile(thumbnailPath(storedFilename), thumbnailPath(newFilename));
+  return newFilename;
 }
 
 export async function deleteImageFiles(storedFilename: string): Promise<void> {

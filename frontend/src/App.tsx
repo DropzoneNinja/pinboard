@@ -1,5 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { SocketProvider } from './contexts/SocketContext';
+import { AppSettingsProvider } from './contexts/AppSettingsContext';
 import { BoardsProvider } from './contexts/BoardsContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AppShell } from './components/AppShell';
@@ -16,9 +18,13 @@ function App() {
           <Route element={<ProtectedRoute />}>
             <Route
               element={
-                <BoardsProvider>
-                  <AppShell />
-                </BoardsProvider>
+                <SocketProvider>
+                  <AppSettingsProvider>
+                    <BoardsProvider>
+                      <AppShell />
+                    </BoardsProvider>
+                  </AppSettingsProvider>
+                </SocketProvider>
               }
             >
               <Route path="/" element={<HomeRedirect />} />

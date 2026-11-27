@@ -20,4 +20,8 @@ export const env = {
   maxUploadMb: Number(optional('MAX_UPLOAD_MB', '15')),
   frontendOrigin: process.env.FRONTEND_ORIGIN,
   uploadsDir: optional('UPLOADS_DIR', '/data/uploads'),
+  backupDir: optional('BACKUP_DIR', '/data/backups'),
+  // Default retention for the recycle bin; also stored (and overridable) in app_settings via the
+  // Settings UI — this env var only seeds that row's initial value on first boot.
+  recycleBinRetentionDays: Number(optional('RECYCLE_BIN_RETENTION_DAYS', '30')),
 };

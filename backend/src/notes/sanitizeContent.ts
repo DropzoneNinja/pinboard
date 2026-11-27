@@ -7,7 +7,13 @@
  * It also doubles as the "no external image hosting" enforcement point for image `src` (Phase 4).
  */
 
-type JsonNode = { type?: unknown; attrs?: unknown; content?: unknown; marks?: unknown; text?: unknown };
+type JsonNode = {
+  type?: unknown;
+  attrs?: unknown;
+  content?: unknown;
+  marks?: unknown;
+  text?: unknown;
+};
 
 const ALLOWED_TEXT_ALIGN = new Set(['left', 'center', 'right', 'justify']);
 const ATTACHMENT_SRC_PATTERN = /^\/api\/v1\/attachments\/[0-9a-f-]{36}$/;
@@ -29,7 +35,10 @@ function sanitizeMark(mark: unknown): JsonNode | null {
     case 'link': {
       const attrs = m.attrs as Record<string, unknown> | undefined;
       if (!isSafeHref(attrs?.href)) return null;
-      return { type: 'link', attrs: { href: attrs!.href, rel: 'noopener noreferrer', target: '_blank' } };
+      return {
+        type: 'link',
+        attrs: { href: attrs!.href, rel: 'noopener noreferrer', target: '_blank' },
+      };
     }
     default:
       return null;
@@ -163,4 +172,22 @@ export function classifyContent(content: Record<string, unknown>): ContentType {
   if (hasImage) return 'image';
   if (hasTable) return 'table';
   return 'text';
+}
+
+function collectText(node: JsonNode, parts: string[]): void {
+  if (node.type === 'text' && typeof node.text === 'string') {
+    parts.push(node.text);
+  }
+  if (Array.isArray(node.content)) {
+    for (const child of node.content) {
+      if (typeof child === 'object' && child !== null) collectText(child as JsonNode, parts);
+    }
+  }
+}
+
+/** Plain-text extraction of a sanitized TipTap doc, for full-text search indexing. */
+export function extractPlainText(content: Record<string, unknown>): string {
+  const parts: string[] = [];
+  collectText(content as JsonNode, parts);
+  return parts.join(' ').slice(0, 20000);
 }
