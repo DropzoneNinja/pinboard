@@ -57,7 +57,7 @@ export function useBoards() {
       method: 'POST',
       body: { name },
     });
-    setBoards((prev) => [...prev, board]);
+    setBoards((prev) => (prev.some((b) => b.id === board.id) ? prev : [...prev, board]));
     return board;
   }, []);
 
